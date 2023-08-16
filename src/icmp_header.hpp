@@ -19,6 +19,9 @@
 #include <iostream>
 #include <istream>
 
+using u8 = std::uint8_t;
+using u16 = std::uint16_t;
+
 class IcmpHeader
 {
 public:
@@ -32,27 +35,27 @@ public:
   IcmpHeader (IcmpHeader&) = delete;
   IcmpHeader (IcmpHeader&&) = delete;
 
-  std::uint8_t
+  u8
   type () const
   {
     return rep_[0];
   }
-  std::uint8_t
+  u8
   code () const
   {
     return rep_[1];
   }
-  std::uint16_t
+  u16
   checksum () const
   {
     return decode (2, 3);
   }
-  std::uint16_t
+  u16
   identifier () const
   {
     return decode (4, 5);
   }
-  std::uint16_t
+  u16
   sequence_number () const
   {
     return decode (6, 7);
@@ -64,22 +67,22 @@ public:
     rep_[0] = static_cast<uint8_t> (msg);
   }
   void
-  code (std::uint8_t n)
+  code (u8 n)
   {
     rep_[1] = n;
   }
   void
-  checksum (std::uint16_t n)
+  checksum (u16 n)
   {
     encode (2, 3, n);
   }
   void
-  identifier (std::uint16_t n)
+  identifier (u16 n)
   {
     encode (4, 5, n);
   }
   void
-  sequence_number (std::uint16_t n)
+  sequence_number (u16 n)
   {
     encode (6, 7, n);
   }
@@ -88,7 +91,7 @@ public:
   compute_checksum ()
   {
     // Zero out the checksum
-    std::uint16_t sum = 0;
+    u16 sum = 0;
     sum += (static_cast<uint8_t> (type ()) << 8) + code () + checksum ()
            + identifier () + sequence_number ();
 
@@ -114,18 +117,18 @@ public:
   }
 
 private:
-  std::uint16_t
+  u16
   decode (int a, int b) const
   {
     return (rep_[a] << 8) + rep_[b];
   }
 
   void
-  encode (int a, int b, std::uint16_t n)
+  encode (int a, int b, u16 n)
   {
-    rep_[a] = static_cast<std::uint8_t> (n >> 8);
-    rep_[b] = static_cast<std::uint8_t> (n & 0xFF);
+    rep_[a] = static_cast<u8> (n >> 8);
+    rep_[b] = static_cast<u8> (n & 0xFF);
   }
 
-  std::uint8_t rep_[8];
+  u8 rep_[8];
 };
