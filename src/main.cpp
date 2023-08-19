@@ -163,20 +163,29 @@ ping (std::string_view host, asio::steady_timer& timer,
 }
 
 auto
-main () -> int
+main (int argc, char** argv) -> int
 {
+  if (argc < 5)
+    {
+      std::cout << "Usage: ping-cpp --host <host> --max-pings <number>\n";
+      std::cout << "Usage: ping-cpp -h <host> -m <number>\n";
+      std::cout << "Exiting...\n";
+      return -1;
+    }
+
   try
     {
-      std::cout << "Host: ";
-
-      // Read in the host
-      std::string host;
-      std::getline (std::cin, host);
+      std::string host{ argv[2] };
+      auto max_pings{ std::stoi (argv[4]) };
 
       asio::io_context ctx;
       asio::steady_timer timer{ ctx };
-      asio::co_spawn (ctx, ping (host, timer), asio::detached);
+      asio::co_spawn (ctx, ping (host, timer, max_pings), asio::detached);
       ctx.run ();
+    }
+  catch (std::invalid_argument& e)
+    {
+      std::cerr << "Invalid arugment: max-pings should be a number\n";
     }
   catch (std::exception& e)
     {
