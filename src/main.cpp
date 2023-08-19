@@ -6,6 +6,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,11 +35,11 @@ struct State
     socket.close ();
   }
 
-  std::uint16_t identifier;
+  const std::uint16_t identifier;
   std::uint16_t sequence_number;
-  std::uint32_t max_pings;
+  const std::uint32_t max_pings;
   icmp::socket socket;
-  icmp::endpoint destination;
+  const icmp::endpoint destination;
   asio::steady_timer& timer;
   chrono::steady_clock::time_point time_sent;
 };
@@ -58,7 +59,7 @@ send_icmp (SharedStatePtr state) -> async<void>
   header.type (IcmpHeader::MessageType::ECHO_REQUEST);
   header.code (0);
   header.identifier (state->identifier);
-  header.sequence_number (state->sequence_number++);
+  header.sequence_number (++state->sequence_number);
   header.compute_checksum ();
 
   asio::streambuf request_buffer;
@@ -72,16 +73,17 @@ send_icmp (SharedStatePtr state) -> async<void>
   co_await state->socket.async_send_to (
       request_buffer.data (), state->destination, asio::use_awaitable);
 
-  co_await recieve_icmp (state);
+  co_await send_icmp (state);
 }
 
 auto
 recieve_icmp (SharedStatePtr state) -> async<void>
 {
+  const auto BUFFER_SIZE_IN_BYTES{ 65536 };
   asio::streambuf reply_buffer;
   reply_buffer.consume (reply_buffer.size ());
   auto len = co_await state->socket.async_receive (
-      reply_buffer.prepare (65536), asio::use_awaitable);
+      reply_buffer.prepare (BUFFER_SIZE_IN_BYTES), asio::use_awaitable);
 
   reply_buffer.commit (len);
   std::istream is (&reply_buffer);
@@ -92,7 +94,8 @@ recieve_icmp (SharedStatePtr state) -> async<void>
   if (is
       && icmp_header.type ()
              == static_cast<std::uint8_t> (IcmpHeader::MessageType::ECHO_REPLY)
-      && icmp_header.identifier () == state->identifier)
+      && icmp_header.identifier () == state->identifier
+      && icmp_header.sequence_number () == state->sequence_number - 1)
     {
       chrono::steady_clock::time_point now = chrono::steady_clock::now ();
       chrono::steady_clock::duration elapsed = now - state->time_sent;
@@ -101,11 +104,11 @@ recieve_icmp (SharedStatePtr state) -> async<void>
           << ipv4_header.source_addr ()
           << ": icmp_seq=" << icmp_header.sequence_number ()
           << ", ttl=" << +ipv4_header.time_to_live () << ", time="
-          << chrono::duration_cast<chrono::milliseconds> (elapsed).count () << " ms"
-          << std::endl;
+          << chrono::duration_cast<chrono::milliseconds> (elapsed).count ()
+          << " ms" << std::endl;
     }
 
-  co_await send_icmp (state);
+  co_await recieve_icmp (state);
 }
 
 auto
@@ -121,7 +124,8 @@ resolve_host_addr (const std::string_view host)
           icmp::v4 (), host, "", asio::use_awaitable);
 
       icmp::endpoint destination{ *endpoint_iter };
-      std::cout << "Discovered IPv4 address: " << destination.address() << "\n";
+      std::cout << "Discovered IPv4 address: " << destination.address ()
+                << "\n";
 
       icmp_sock.open (icmp::v4 ());
       co_return std::make_pair (std::move (destination),
@@ -136,7 +140,8 @@ resolve_host_addr (const std::string_view host)
 }
 
 auto
-ping (std::string_view host, asio::steady_timer& timer) -> async<void>
+ping (std::string_view host, asio::steady_timer& timer,
+      std::uint32_t max_pings) -> async<void>
 {
   auto end_and_sock = co_await resolve_host_addr (host);
   if (!end_and_sock)
