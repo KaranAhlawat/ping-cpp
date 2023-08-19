@@ -154,10 +154,9 @@ ping (std::string_view host, asio::steady_timer& timer,
   auto& [dest, sock] = end_and_sock.value ();
 
   auto icmp_packet_seq_start{ 0 };
-  auto icmp_max_packets_sent{ 10 };
-  auto state{ std::make_shared<State> (
-      std::move (sock), getpid (), icmp_packet_seq_start,
-      icmp_max_packets_sent, std::move (dest), timer) };
+  auto state{ std::make_shared<State> (std::move (sock), getpid (),
+                                       icmp_packet_seq_start, max_pings,
+                                       std::move (dest), timer) };
 
   co_await (send_icmp (state) || recieve_icmp (state));
   std::cout << "Done running.\n";
